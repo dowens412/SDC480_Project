@@ -1,16 +1,62 @@
-# React + Vite
+# Townside Web Client Lead and Job Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This project is being built for my SDC480 capstone project and is something I plan to eventually use with my business, Townside Web.
 
-Currently, two official plugins are available:
+The goal is to give Townside Web clients a simple dashboard where they can keep track of leads, customers, and jobs without having to use a system that is overly complicated.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Phase 1
 
-## React Compiler
+For Phase 1, I created the basic structure of the application.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The project currently includes:
 
-## Expanding the ESLint configuration
+- Login page
+- Dashboard
+- Leads page
+- Jobs page
+- Customers page
+- Working navigation between pages
+- Database-backed login
+- SQLite database
+- Express backend
+- Sample leads, jobs, and customer information
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+The dashboard currently shows information such as new leads, open estimates, jobs, and the potential value of active leads.
+
+## Technology Used
+
+- React
+- JavaScript
+- HTML
+- CSS
+- Node.js
+- Express
+- SQLite
+
+## Demo Login
+
+Email:
+
+demo@townsidewebs.com
+
+Password:
+
+Townside123!
+
+## Running the Project
+
+Install the project dependencies:
+
+npm install
+
+Start the application:
+
+npm run dev
+
+The React application runs at:
+
+http://localhost:5173/
+
+The backend runs at:
+
+http://localhost:3001/
