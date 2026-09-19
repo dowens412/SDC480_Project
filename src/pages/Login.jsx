@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -11,6 +11,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Submit credentials to the backend for database verification.
   const handleSubmit = async (event) => {
     event.preventDefault()
 
@@ -78,8 +79,12 @@ export default function Login() {
           </button>
         </form>
 
+        <p className="auth-link">
+          Need an account? <Link to="/register">Create Account</Link>
+        </p>
+
         <div className="demo-login">
-          <strong>Phase #1 Demo Account</strong>
+          <strong>Demo Account</strong>
           <span>demo@townsidewebs.com</span>
           <span>Townside123!</span>
         </div>
@@ -116,8 +121,8 @@ export default function Login() {
             </div>
 
             <div>
-              <strong>Dashboard</strong>
-              <span>See the numbers that matter</span>
+              <strong>Search</strong>
+              <span>Quickly find the records you need</span>
             </div>
           </div>
         </div>

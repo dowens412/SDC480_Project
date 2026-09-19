@@ -5,6 +5,7 @@ export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
+  // Clear the locally stored user and return to the login screen.
   const handleLogout = () => {
     logout()
     navigate('/')
@@ -25,9 +26,11 @@ export default function Layout() {
 
           <nav className="nav-links">
             <NavLink to="/dashboard">Dashboard</NavLink>
+            <NavLink to="/search">Search</NavLink>
             <NavLink to="/leads">Leads</NavLink>
             <NavLink to="/jobs">Jobs</NavLink>
             <NavLink to="/customers">Customers</NavLink>
+            <NavLink to="/account">Account</NavLink>
           </nav>
         </div>
 
