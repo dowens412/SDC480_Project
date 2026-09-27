@@ -15,12 +15,11 @@ const PORT = 3001
 app.use(cors())
 app.use(express.json())
 
-// Open the local SQLite database and enforce foreign-key relationships.
+// Open the SQLite database and enforce foreign-key relationships.
 const db = new Database(path.join(__dirname, 'townside.db'))
 db.pragma('foreign_keys = ON')
 
-// Load the database schema each time the server starts.
-// CREATE TABLE IF NOT EXISTS keeps existing data intact.
+// Load the project database schema without deleting existing data.
 const schema = fs.readFileSync(
   path.join(__dirname, 'database-schema.sql'),
   'utf8'
@@ -28,8 +27,7 @@ const schema = fs.readFileSync(
 
 db.exec(schema)
 
-// Passwords must meet the same complexity requirements used
-// by both registration and password-change features.
+// Password rules used by registration and password changes.
 function passwordIsValid(password) {
   return (
     typeof password === 'string' &&
@@ -41,7 +39,7 @@ function passwordIsValid(password) {
   )
 }
 
-// Seed Phase 1 demo data only when the database is empty.
+// Create the original Phase 1 demo data only if the database is empty.
 const existingBusiness = db
   .prepare('SELECT COUNT(*) AS count FROM businesses')
   .get().count
@@ -63,7 +61,7 @@ if (existingBusiness === 0) {
     'Demo Client',
     'demo@townsidewebs.com',
     passwordHash,
-    'client'
+    'admin'
   )
 
   const lead = db.prepare(`
@@ -173,7 +171,15 @@ if (existingBusiness === 0) {
   )
 }
 
-// Verify a user's email and hashed password before allowing login.
+// Make sure the original demo account is the administrative account
+// required for the Phase 3 submission.
+db.prepare(`
+  UPDATE users
+  SET role = 'admin'
+  WHERE email = ?
+`).run('demo@townsidewebs.com')
+
+// Verify login credentials against the hashed password in the database.
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body
 
@@ -190,6 +196,7 @@ app.post('/api/login', (req, res) => {
       users.email,
       users.password_hash,
       users.business_id,
+      users.role,
       businesses.name AS business_name
     FROM users
     JOIN businesses
@@ -209,13 +216,13 @@ app.post('/api/login', (req, res) => {
       name: user.name,
       email: user.email,
       businessId: user.business_id,
-      businessName: user.business_name
+      businessName: user.business_name,
+      role: user.role
     }
   })
 })
 
-// Phase 2: Register a new Townside Web client business and user.
-// Passwords are hashed before being stored in the database.
+// Register a new Townside Web business and client user.
 app.post('/api/register', (req, res) => {
   const {
     name,
@@ -249,8 +256,6 @@ app.post('/api/register', (req, res) => {
     })
   }
 
-  // Creating the business and user together keeps the account
-  // connected to the correct Townside Web client.
   const createAccount = db.transaction(() => {
     const business = db
       .prepare('INSERT INTO businesses (name) VALUES (?)')
@@ -276,19 +281,17 @@ app.post('/api/register', (req, res) => {
       name: name.trim(),
       email: normalizedEmail,
       businessId,
-      businessName: businessName.trim()
+      businessName: businessName.trim(),
+      role: 'client'
     }
   })
 
-  const newUser = createAccount()
-
   res.status(201).json({
-    user: newUser
+    user: createAccount()
   })
 })
 
-// Phase 2: Change an existing user's password.
-// The current password must be verified first.
+// Verify the current password before allowing a password change.
 app.post('/api/change-password', (req, res) => {
   const {
     userId,
@@ -321,22 +324,22 @@ app.post('/api/change-password', (req, res) => {
     })
   }
 
-  const newHash = bcrypt.hashSync(newPassword, 10)
-
   db.prepare(`
     UPDATE users
     SET password_hash = ?
     WHERE id = ?
-  `).run(newHash, user.id)
+  `).run(
+    bcrypt.hashSync(newPassword, 10),
+    user.id
+  )
 
   res.json({
     message: 'Password changed successfully.'
   })
 })
 
-// Phase 2 search feature.
-// "*" matches any number of characters and "?" matches one character.
-// A normal search automatically matches the term anywhere in the record.
+// Search across leads, jobs, and customers.
+// "*" represents multiple characters and "?" represents one character.
 app.get('/api/search/:businessId', (req, res) => {
   const businessId = Number(req.params.businessId)
   const query = String(req.query.q || '').trim()
@@ -359,16 +362,21 @@ app.get('/api/search/:businessId', (req, res) => {
     pattern = `%${pattern}%`
   }
 
-  // Prepared statements are used so search input is never
-  // inserted directly into SQL.
+  // Additional fields are returned so Phase 3 can load records
+  // into the edit form directly from the Search page.
   const leads = db.prepare(`
     SELECT
       id,
+      'lead' AS recordType,
       'Lead' AS type,
       customer_name AS title,
       service AS details,
       status,
-      estimated_value AS value
+      estimated_value AS value,
+      phone,
+      email,
+      notes,
+      NULL AS scheduledDate
     FROM leads
     WHERE business_id = ?
       AND (
@@ -392,11 +400,16 @@ app.get('/api/search/:businessId', (req, res) => {
   const jobs = db.prepare(`
     SELECT
       id,
+      'job' AS recordType,
       'Job' AS type,
       customer_name AS title,
       service AS details,
       status,
-      job_value AS value
+      job_value AS value,
+      '' AS phone,
+      '' AS email,
+      '' AS notes,
+      scheduled_date AS scheduledDate
     FROM jobs
     WHERE business_id = ?
       AND (
@@ -416,11 +429,16 @@ app.get('/api/search/:businessId', (req, res) => {
   const customers = db.prepare(`
     SELECT
       id,
+      'customer' AS recordType,
       'Customer' AS type,
       name AS title,
       COALESCE(email, phone, '') AS details,
       '' AS status,
-      NULL AS value
+      NULL AS value,
+      phone,
+      email,
+      '' AS notes,
+      NULL AS scheduledDate
     FROM customers
     WHERE business_id = ?
       AND (
@@ -442,20 +460,286 @@ app.get('/api/search/:businessId', (req, res) => {
   ])
 })
 
-// Dashboard totals are calculated from records belonging to one business.
+/* =========================================================
+   PHASE 3 CRUD ROUTES
+   Add, edit, and delete records directly from Search.
+   Every operation checks the business_id so one client
+   cannot change another client's records.
+   ========================================================= */
+
+// Add a new lead, job, or customer.
+app.post('/api/records/:type', (req, res) => {
+  const type = req.params.type
+  const data = req.body
+  const businessId = Number(data.businessId)
+
+  if (!businessId) {
+    return res.status(400).json({
+      message: 'Business information is required.'
+    })
+  }
+
+  if (type === 'lead') {
+    if (!data.name) {
+      return res.status(400).json({
+        message: 'Customer name is required.'
+      })
+    }
+
+    const result = db.prepare(`
+      INSERT INTO leads
+      (
+        business_id,
+        customer_name,
+        phone,
+        email,
+        service,
+        status,
+        estimated_value,
+        notes
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      businessId,
+      data.name.trim(),
+      data.phone || '',
+      data.email || '',
+      data.service || '',
+      data.status || 'New Lead',
+      Number(data.value) || 0,
+      data.notes || ''
+    )
+
+    return res.status(201).json({
+      id: result.lastInsertRowid,
+      message: 'Lead added successfully.'
+    })
+  }
+
+  if (type === 'job') {
+    if (!data.name) {
+      return res.status(400).json({
+        message: 'Customer name is required.'
+      })
+    }
+
+    const result = db.prepare(`
+      INSERT INTO jobs
+      (
+        business_id,
+        customer_name,
+        service,
+        status,
+        job_value,
+        scheduled_date
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      businessId,
+      data.name.trim(),
+      data.service || '',
+      data.status || 'Scheduled',
+      Number(data.value) || 0,
+      data.scheduledDate || ''
+    )
+
+    return res.status(201).json({
+      id: result.lastInsertRowid,
+      message: 'Job added successfully.'
+    })
+  }
+
+  if (type === 'customer') {
+    if (!data.name) {
+      return res.status(400).json({
+        message: 'Customer name is required.'
+      })
+    }
+
+    const result = db.prepare(`
+      INSERT INTO customers
+      (
+        business_id,
+        name,
+        phone,
+        email
+      )
+      VALUES (?, ?, ?, ?)
+    `).run(
+      businessId,
+      data.name.trim(),
+      data.phone || '',
+      data.email || ''
+    )
+
+    return res.status(201).json({
+      id: result.lastInsertRowid,
+      message: 'Customer added successfully.'
+    })
+  }
+
+  return res.status(400).json({
+    message: 'Invalid record type.'
+  })
+})
+
+// Edit an existing lead, job, or customer.
+app.put('/api/records/:type/:id', (req, res) => {
+  const type = req.params.type
+  const id = Number(req.params.id)
+  const data = req.body
+  const businessId = Number(data.businessId)
+
+  if (!id || !businessId) {
+    return res.status(400).json({
+      message: 'Invalid record information.'
+    })
+  }
+
+  let result
+
+  if (type === 'lead') {
+    result = db.prepare(`
+      UPDATE leads
+      SET
+        customer_name = ?,
+        phone = ?,
+        email = ?,
+        service = ?,
+        status = ?,
+        estimated_value = ?,
+        notes = ?
+      WHERE id = ?
+        AND business_id = ?
+    `).run(
+      data.name || '',
+      data.phone || '',
+      data.email || '',
+      data.service || '',
+      data.status || 'New Lead',
+      Number(data.value) || 0,
+      data.notes || '',
+      id,
+      businessId
+    )
+  } else if (type === 'job') {
+    result = db.prepare(`
+      UPDATE jobs
+      SET
+        customer_name = ?,
+        service = ?,
+        status = ?,
+        job_value = ?,
+        scheduled_date = ?
+      WHERE id = ?
+        AND business_id = ?
+    `).run(
+      data.name || '',
+      data.service || '',
+      data.status || 'Scheduled',
+      Number(data.value) || 0,
+      data.scheduledDate || '',
+      id,
+      businessId
+    )
+  } else if (type === 'customer') {
+    result = db.prepare(`
+      UPDATE customers
+      SET
+        name = ?,
+        phone = ?,
+        email = ?
+      WHERE id = ?
+        AND business_id = ?
+    `).run(
+      data.name || '',
+      data.phone || '',
+      data.email || '',
+      id,
+      businessId
+    )
+  } else {
+    return res.status(400).json({
+      message: 'Invalid record type.'
+    })
+  }
+
+  if (result.changes === 0) {
+    return res.status(404).json({
+      message: 'Record was not found.'
+    })
+  }
+
+  res.json({
+    message: 'Record updated successfully.'
+  })
+})
+
+// Delete a record only when it belongs to the logged-in business.
+app.delete('/api/records/:type/:id', (req, res) => {
+  const type = req.params.type
+  const id = Number(req.params.id)
+  const businessId = Number(req.query.businessId)
+
+  if (!id || !businessId) {
+    return res.status(400).json({
+      message: 'Invalid record information.'
+    })
+  }
+
+  let result
+
+  if (type === 'lead') {
+    result = db.prepare(`
+      DELETE FROM leads
+      WHERE id = ?
+        AND business_id = ?
+    `).run(id, businessId)
+  } else if (type === 'job') {
+    result = db.prepare(`
+      DELETE FROM jobs
+      WHERE id = ?
+        AND business_id = ?
+    `).run(id, businessId)
+  } else if (type === 'customer') {
+    result = db.prepare(`
+      DELETE FROM customers
+      WHERE id = ?
+        AND business_id = ?
+    `).run(id, businessId)
+  } else {
+    return res.status(400).json({
+      message: 'Invalid record type.'
+    })
+  }
+
+  if (result.changes === 0) {
+    return res.status(404).json({
+      message: 'Record was not found.'
+    })
+  }
+
+  res.json({
+    message: 'Record deleted successfully.'
+  })
+})
+
+// Dashboard summary.
 app.get('/api/dashboard/:businessId', (req, res) => {
   const businessId = Number(req.params.businessId)
 
   const newLeads = db.prepare(`
     SELECT COUNT(*) AS count
     FROM leads
-    WHERE business_id = ? AND status = 'New Lead'
+    WHERE business_id = ?
+      AND status = 'New Lead'
   `).get(businessId).count
 
   const openEstimates = db.prepare(`
     SELECT COUNT(*) AS count
     FROM leads
-    WHERE business_id = ? AND status = 'Estimate Sent'
+    WHERE business_id = ?
+      AND status = 'Estimate Sent'
   `).get(businessId).count
 
   const jobs = db.prepare(`
@@ -467,7 +751,8 @@ app.get('/api/dashboard/:businessId', (req, res) => {
   const potentialValue = db.prepare(`
     SELECT COALESCE(SUM(estimated_value), 0) AS total
     FROM leads
-    WHERE business_id = ? AND status != 'Lost'
+    WHERE business_id = ?
+      AND status != 'Lost'
   `).get(businessId).total
 
   res.json({
@@ -478,7 +763,6 @@ app.get('/api/dashboard/:businessId', (req, res) => {
   })
 })
 
-// Return only the leads assigned to the requested client business.
 app.get('/api/leads/:businessId', (req, res) => {
   const data = db.prepare(`
     SELECT *
@@ -490,7 +774,6 @@ app.get('/api/leads/:businessId', (req, res) => {
   res.json(data)
 })
 
-// Return only jobs belonging to the requested client business.
 app.get('/api/jobs/:businessId', (req, res) => {
   const data = db.prepare(`
     SELECT *
@@ -502,7 +785,6 @@ app.get('/api/jobs/:businessId', (req, res) => {
   res.json(data)
 })
 
-// Return only customers belonging to the requested client business.
 app.get('/api/customers/:businessId', (req, res) => {
   const data = db.prepare(`
     SELECT *

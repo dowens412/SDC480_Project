@@ -708,3 +708,114 @@ td span:not(.status-badge) {
     flex-basis: 100%;
   }
 }
+
+
+/* =========================================================
+   PHASE 3
+   Add, edit, and delete functionality
+   ========================================================= */
+
+.phase-message {
+  margin-bottom: 20px;
+}
+
+.record-form-card {
+  margin-bottom: 24px;
+}
+
+.record-form-heading {
+  margin-bottom: 20px;
+}
+
+.record-form-heading h3 {
+  margin: 0 0 5px;
+}
+
+.record-form-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.record-form {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.record-form label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.record-form input,
+.record-form select,
+.record-form textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #cfd6df;
+  border-radius: 8px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+.record-form input:focus,
+.record-form select:focus,
+.record-form textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 116, 217, .1);
+}
+
+.record-form select:disabled {
+  background: #f4f7fa;
+}
+
+.record-form-wide,
+.record-form-actions {
+  grid-column: 1 / -1;
+}
+
+.record-form-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.table-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.edit-button,
+.delete-button {
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.edit-button {
+  border: 1px solid #bad2ef;
+  background: #edf5ff;
+  color: #1d5fae;
+}
+
+.delete-button {
+  border: 1px solid #efc6c6;
+  background: #fff1f1;
+  color: #a32828;
+}
+
+@media (max-width: 760px) {
+  .record-form {
+    grid-template-columns: 1fr;
+  }
+
+  .record-form-wide,
+  .record-form-actions {
+    grid-column: auto;
+  }
+}
