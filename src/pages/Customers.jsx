@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 export default function Customers() {
   const { user } = useAuth()
   const [customers, setCustomers] = useState([])
 
   useEffect(() => {
-    fetch(`http://localhost:3001/api/customers/${user.businessId}`)
+    apiFetch(`http://localhost:3001/api/customers/${user.businessId}`)
       .then((response) => response.json())
       .then((data) => setCustomers(data))
       .catch((error) => console.error(error))
@@ -20,7 +22,7 @@ export default function Customers() {
           <p>View customer contact information in one place.</p>
         </div>
 
-        <button className="primary-button">+ Add Customer</button>
+        <Link className="primary-button" to="/search?add=customer">+ Add Customer</Link>
       </div>
 
       <div className="content-card table-card">

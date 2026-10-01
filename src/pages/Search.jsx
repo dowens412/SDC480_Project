@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 const emptyForm = {
   recordType: 'lead',
   name: '',
@@ -16,14 +17,30 @@ const emptyForm = {
 export default function Search() {
   const { user } = useAuth()
 
+  const addType = new URLSearchParams(window.location.search).get('add')
+
+  const requestedType =
+    ['lead', 'job', 'customer'].includes(addType)
+      ? addType
+      : 'lead'
+
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [searched, setSearched] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(Boolean(addType))
   const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState({
+    ...emptyForm,
+    recordType: requestedType,
+    status:
+      requestedType === 'job'
+        ? 'Scheduled'
+        : requestedType === 'lead'
+          ? 'New Lead'
+          : ''
+  })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -38,7 +55,7 @@ export default function Search() {
     setLoading(true)
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:3001/api/search/${user.businessId}?q=${encodeURIComponent(value)}`
       )
 
@@ -67,10 +84,25 @@ export default function Search() {
   const updateField = (event) => {
     const { name, value } = event.target
 
-    setForm((current) => ({
-      ...current,
-      [name]: value
-    }))
+    setForm((current) => {
+      if (name === 'recordType') {
+        return {
+          ...current,
+          recordType: value,
+          status:
+            value === 'job'
+              ? 'Scheduled'
+              : value === 'lead'
+                ? 'New Lead'
+                : ''
+        }
+      }
+
+      return {
+        ...current,
+        [name]: value
+      }
+    })
   }
 
   // Open a blank form for adding a new record.
@@ -129,7 +161,7 @@ export default function Search() {
     const method = editingId ? 'PUT' : 'POST'
 
     try {
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json'
@@ -174,7 +206,7 @@ export default function Search() {
     setError('')
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `http://localhost:3001/api/records/${record.recordType}/${record.id}?businessId=${user.businessId}`,
         {
           method: 'DELETE'

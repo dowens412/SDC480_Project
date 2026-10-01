@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 export default function Dashboard() {
   const { user } = useAuth()
 
@@ -12,7 +13,7 @@ export default function Dashboard() {
   })
 
   useEffect(() => {
-    fetch(`http://localhost:3001/api/dashboard/${user.businessId}`)
+    apiFetch(`http://localhost:3001/api/dashboard/${user.businessId}`)
       .then((response) => response.json())
       .then((data) => setStats(data))
       .catch((error) => console.error(error))

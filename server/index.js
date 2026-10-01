@@ -1,5 +1,10 @@
+import process from 'node:process'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import jwt from 'jsonwebtoken'
+import dotenv from 'dotenv'
 import Database from 'better-sqlite3'
 import bcrypt from 'bcryptjs'
 import fs from 'fs'
@@ -9,11 +14,67 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+dotenv.config({
+  path: path.join(__dirname, '..', '.env')
+})
+
+const JWT_SECRET = process.env.JWT_SECRET
+
+if (!JWT_SECRET) {
+  throw new Error(
+    'JWT_SECRET is missing. Create a .env file before starting the server.'
+  )
+}
+
 const app = express()
 const PORT = 3001
 
-app.use(cors())
-app.use(express.json())
+app.disable('x-powered-by')
+
+// Week 5 security: add standard HTTP security headers.
+app.use(helmet())
+
+// Only allow requests from the approved frontend.
+const allowedOrigins = [
+  process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  'http://127.0.0.1:5173'
+]
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true)
+      }
+
+      return callback(new Error('Origin not allowed by CORS'))
+    }
+  })
+)
+
+// Limit request size so unexpectedly large payloads are rejected.
+app.use(express.json({ limit: '50kb' }))
+
+// General protection against excessive API requests.
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+})
+
+app.use('/api', apiLimiter)
+
+// Login and registration receive a much stricter limit.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    message: 'Too many login attempts. Please try again later.'
+  }
+})
 
 // Open the SQLite database and enforce foreign-key relationships.
 const db = new Database(path.join(__dirname, 'townside.db'))
@@ -26,6 +87,65 @@ const schema = fs.readFileSync(
 )
 
 db.exec(schema)
+
+// Create a signed login token that cannot be modified by the browser.
+function issueToken(user) {
+  return jwt.sign(
+    {
+      userId: Number(user.id),
+      businessId: Number(user.businessId),
+      role: user.role || 'client'
+    },
+    JWT_SECRET,
+    {
+      expiresIn: '8h'
+    }
+  )
+}
+
+// Protect private API routes and load the user's business directly
+// from the database instead of trusting information sent by the browser.
+function requireAuth(req, res, next) {
+  const authorization = req.get('authorization') || ''
+  const [scheme, token] = authorization.split(' ')
+
+  if (scheme !== 'Bearer' || !token) {
+    return res.status(401).json({
+      message: 'Authentication is required.'
+    })
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET)
+
+    const user = db.prepare(`
+      SELECT
+        id,
+        business_id,
+        role
+      FROM users
+      WHERE id = ?
+    `).get(Number(payload.userId))
+
+    if (!user) {
+      return res.status(401).json({
+        message: 'Authentication is no longer valid.'
+      })
+    }
+
+    req.auth = {
+      userId: user.id,
+      businessId: user.business_id,
+      role: user.role
+    }
+
+    next()
+  } catch {
+    return res.status(401).json({
+      message: 'Authentication is invalid or has expired.'
+    })
+  }
+}
 
 // Password rules used by registration and password changes.
 function passwordIsValid(password) {
@@ -112,6 +232,107 @@ if (existingBusiness === 0) {
     'Follow up later this week.'
   )
 
+  // Additional demonstration records give the final project
+  // enough realistic data to show search, filtering, and reporting.
+  lead.run(
+    businessId,
+    'James Carter',
+    '(704) 555-0201',
+    'james@example.com',
+    'Tree Removal',
+    'New Lead',
+    1200,
+    'Customer requested an estimate for one large tree.'
+  )
+
+  lead.run(
+    businessId,
+    'Olivia Martinez',
+    '(980) 555-0202',
+    'olivia@example.com',
+    'Tree Trimming',
+    'Contacted',
+    650,
+    'Needs several trees trimmed away from the house.'
+  )
+
+  lead.run(
+    businessId,
+    'Daniel Brooks',
+    '(704) 555-0203',
+    'daniel@example.com',
+    'Stump Grinding',
+    'Estimate Sent',
+    400,
+    'Estimate sent for two stumps.'
+  )
+
+  lead.run(
+    businessId,
+    'Rachel Green',
+    '(980) 555-0204',
+    'rachel@example.com',
+    'Emergency Tree Service',
+    'New Lead',
+    1800,
+    'Storm damaged tree near driveway.'
+  )
+
+  lead.run(
+    businessId,
+    'Kevin Turner',
+    '(704) 555-0205',
+    'kevin@example.com',
+    'Tree Removal',
+    'Won',
+    1450,
+    'Customer approved the estimate.'
+  )
+
+  lead.run(
+    businessId,
+    'Nicole Harris',
+    '(980) 555-0206',
+    'nicole@example.com',
+    'Tree Trimming',
+    'Estimate Sent',
+    725,
+    'Waiting on customer approval.'
+  )
+
+  lead.run(
+    businessId,
+    'Brian Cooper',
+    '(704) 555-0207',
+    'brian@example.com',
+    'Stump Grinding',
+    'Contacted',
+    325,
+    'Follow up requested later this week.'
+  )
+
+  lead.run(
+    businessId,
+    'Ashley Morgan',
+    '(980) 555-0208',
+    'ashley@example.com',
+    'Tree Removal',
+    'New Lead',
+    2100,
+    'Multiple trees need inspection and removal estimate.'
+  )
+
+  lead.run(
+    businessId,
+    'Eric Thompson',
+    '(704) 555-0209',
+    'eric@example.com',
+    'Tree Trimming',
+    'Lost',
+    550,
+    'Customer decided to wait until later in the year.'
+  )
+
   const job = db.prepare(`
     INSERT INTO jobs
     (
@@ -180,7 +401,7 @@ db.prepare(`
 `).run('demo@townsidewebs.com')
 
 // Verify login credentials against the hashed password in the database.
-app.post('/api/login', (req, res) => {
+app.post('/api/login', authLimiter, (req, res) => {
   const { email, password } = req.body
 
   if (!email || !password) {
@@ -210,20 +431,23 @@ app.post('/api/login', (req, res) => {
     })
   }
 
+  const publicUser = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    businessId: user.business_id,
+    businessName: user.business_name,
+    role: user.role
+  }
+
   res.json({
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      businessId: user.business_id,
-      businessName: user.business_name,
-      role: user.role
-    }
+    user: publicUser,
+    token: issueToken(publicUser)
   })
 })
 
 // Register a new Townside Web business and client user.
-app.post('/api/register', (req, res) => {
+app.post('/api/register', authLimiter, (req, res) => {
   const {
     name,
     businessName,
@@ -286,20 +510,22 @@ app.post('/api/register', (req, res) => {
     }
   })
 
+  const newUser = createAccount()
+
   res.status(201).json({
-    user: createAccount()
+    user: newUser,
+    token: issueToken(newUser)
   })
 })
 
 // Verify the current password before allowing a password change.
-app.post('/api/change-password', (req, res) => {
+app.post('/api/change-password', requireAuth, (req, res) => {
   const {
-    userId,
     currentPassword,
     newPassword
   } = req.body
 
-  if (!userId || !currentPassword || !newPassword) {
+  if (!currentPassword || !newPassword) {
     return res.status(400).json({
       message: 'Current and new passwords are required.'
     })
@@ -316,7 +542,7 @@ app.post('/api/change-password', (req, res) => {
     SELECT id, password_hash
     FROM users
     WHERE id = ?
-  `).get(Number(userId))
+  `).get(req.auth.userId)
 
   if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
     return res.status(401).json({
@@ -340,8 +566,9 @@ app.post('/api/change-password', (req, res) => {
 
 // Search across leads, jobs, and customers.
 // "*" represents multiple characters and "?" represents one character.
-app.get('/api/search/:businessId', (req, res) => {
-  const businessId = Number(req.params.businessId)
+app.get('/api/search/:businessId', requireAuth, (req, res) => {
+  // Ignore the browser-supplied business id and trust the signed login.
+  const businessId = req.auth.businessId
   const query = String(req.query.q || '').trim()
 
   if (!query) {
@@ -468,10 +695,12 @@ app.get('/api/search/:businessId', (req, res) => {
    ========================================================= */
 
 // Add a new lead, job, or customer.
-app.post('/api/records/:type', (req, res) => {
+app.post('/api/records/:type', requireAuth, (req, res) => {
   const type = req.params.type
   const data = req.body
-  const businessId = Number(data.businessId)
+
+  // The authenticated account determines which business owns the record.
+  const businessId = req.auth.businessId
 
   if (!businessId) {
     return res.status(400).json({
@@ -584,11 +813,11 @@ app.post('/api/records/:type', (req, res) => {
 })
 
 // Edit an existing lead, job, or customer.
-app.put('/api/records/:type/:id', (req, res) => {
+app.put('/api/records/:type/:id', requireAuth, (req, res) => {
   const type = req.params.type
   const id = Number(req.params.id)
   const data = req.body
-  const businessId = Number(data.businessId)
+  const businessId = req.auth.businessId
 
   if (!id || !businessId) {
     return res.status(400).json({
@@ -676,10 +905,10 @@ app.put('/api/records/:type/:id', (req, res) => {
 })
 
 // Delete a record only when it belongs to the logged-in business.
-app.delete('/api/records/:type/:id', (req, res) => {
+app.delete('/api/records/:type/:id', requireAuth, (req, res) => {
   const type = req.params.type
   const id = Number(req.params.id)
-  const businessId = Number(req.query.businessId)
+  const businessId = req.auth.businessId
 
   if (!id || !businessId) {
     return res.status(400).json({
@@ -725,8 +954,8 @@ app.delete('/api/records/:type/:id', (req, res) => {
 })
 
 // Dashboard summary.
-app.get('/api/dashboard/:businessId', (req, res) => {
-  const businessId = Number(req.params.businessId)
+app.get('/api/dashboard/:businessId', requireAuth, (req, res) => {
+  const businessId = req.auth.businessId
 
   const newLeads = db.prepare(`
     SELECT COUNT(*) AS count
@@ -763,35 +992,35 @@ app.get('/api/dashboard/:businessId', (req, res) => {
   })
 })
 
-app.get('/api/leads/:businessId', (req, res) => {
+app.get('/api/leads/:businessId', requireAuth, (req, res) => {
   const data = db.prepare(`
     SELECT *
     FROM leads
     WHERE business_id = ?
     ORDER BY id DESC
-  `).all(Number(req.params.businessId))
+  `).all(req.auth.businessId)
 
   res.json(data)
 })
 
-app.get('/api/jobs/:businessId', (req, res) => {
+app.get('/api/jobs/:businessId', requireAuth, (req, res) => {
   const data = db.prepare(`
     SELECT *
     FROM jobs
     WHERE business_id = ?
     ORDER BY id DESC
-  `).all(Number(req.params.businessId))
+  `).all(req.auth.businessId)
 
   res.json(data)
 })
 
-app.get('/api/customers/:businessId', (req, res) => {
+app.get('/api/customers/:businessId', requireAuth, (req, res) => {
   const data = db.prepare(`
     SELECT *
     FROM customers
     WHERE business_id = ?
     ORDER BY id DESC
-  `).all(Number(req.params.businessId))
+  `).all(req.auth.businessId)
 
   res.json(data)
 })

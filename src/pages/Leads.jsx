@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 export default function Leads() {
   const { user } = useAuth()
   const [leads, setLeads] = useState([])
 
   useEffect(() => {
-    fetch(`http://localhost:3001/api/leads/${user.businessId}`)
+    apiFetch(`http://localhost:3001/api/leads/${user.businessId}`)
       .then((response) => response.json())
       .then((data) => setLeads(data))
       .catch((error) => console.error(error))
@@ -20,7 +22,7 @@ export default function Leads() {
           <p>View potential customers and track where they are in the process.</p>
         </div>
 
-        <button className="primary-button">+ Add Lead</button>
+        <Link className="primary-button" to="/search?add=lead">+ Add Lead</Link>
       </div>
 
       <div className="content-card table-card">

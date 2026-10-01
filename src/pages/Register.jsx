@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 // Client-side validation gives the user immediate feedback.
 // The backend repeats these checks before saving the password.
 function passwordIsValid(password) {
@@ -55,7 +56,7 @@ export default function Register() {
     setLoading(true)
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         'http://localhost:3001/api/register',
         {
           method: 'POST',
@@ -77,7 +78,7 @@ export default function Register() {
         throw new Error(data.message || 'Unable to create account.')
       }
 
-      login(data.user)
+      login(data.user, data.token)
       navigate('/dashboard')
     } catch (err) {
       setError(err.message)

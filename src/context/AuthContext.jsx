@@ -3,23 +3,61 @@ import { createContext, useContext, useState } from 'react'
 const AuthContext = createContext()
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('townsideUser')
-    return saved ? JSON.parse(saved) : null
+  const [auth, setAuth] = useState(() => {
+    try {
+      const saved = localStorage.getItem('townsideAuth')
+
+      if (!saved) {
+        localStorage.removeItem('townsideUser')
+        return null
+      }
+
+      const parsed = JSON.parse(saved)
+
+      if (!parsed?.user || !parsed?.token) {
+        localStorage.removeItem('townsideAuth')
+        localStorage.removeItem('townsideUser')
+        return null
+      }
+
+      return parsed
+    } catch {
+      localStorage.removeItem('townsideAuth')
+      localStorage.removeItem('townsideUser')
+      return null
+    }
   })
 
-  const login = (userData) => {
-    localStorage.setItem('townsideUser', JSON.stringify(userData))
-    setUser(userData)
+  const login = (userData, token) => {
+    const nextAuth = {
+      user: userData,
+      token
+    }
+
+    localStorage.setItem(
+      'townsideAuth',
+      JSON.stringify(nextAuth)
+    )
+
+    localStorage.removeItem('townsideUser')
+    setAuth(nextAuth)
   }
 
   const logout = () => {
+    localStorage.removeItem('townsideAuth')
     localStorage.removeItem('townsideUser')
-    setUser(null)
+    setAuth(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user: auth?.user || null,
+        token: auth?.token || null,
+        login,
+        logout
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

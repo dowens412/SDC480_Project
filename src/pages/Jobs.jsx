@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 export default function Jobs() {
   const { user } = useAuth()
   const [jobs, setJobs] = useState([])
 
   useEffect(() => {
-    fetch(`http://localhost:3001/api/jobs/${user.businessId}`)
+    apiFetch(`http://localhost:3001/api/jobs/${user.businessId}`)
       .then((response) => response.json())
       .then((data) => setJobs(data))
       .catch((error) => console.error(error))
@@ -20,7 +22,7 @@ export default function Jobs() {
           <p>Keep track of scheduled and completed customer work.</p>
         </div>
 
-        <button className="primary-button">+ Add Job</button>
+        <Link className="primary-button" to="/search?add=job">+ Add Job</Link>
       </div>
 
       <div className="content-card table-card">

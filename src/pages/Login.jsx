@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
@@ -19,7 +20,7 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const response = await fetch('http://localhost:3001/api/login', {
+      const response = await apiFetch('http://localhost:3001/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -33,7 +34,7 @@ export default function Login() {
         throw new Error(data.message || 'Unable to sign in.')
       }
 
-      login(data.user)
+      login(data.user, data.token)
       navigate('/dashboard')
     } catch (err) {
       setError(err.message)

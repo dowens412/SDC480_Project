@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
+import { apiFetch } from '../lib/api'
 function passwordIsValid(password) {
   return (
     password.length >= 8 &&
@@ -43,7 +44,7 @@ export default function Account() {
     setLoading(true)
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         'http://localhost:3001/api/change-password',
         {
           method: 'POST',
