@@ -1,13 +1,15 @@
 # Database Schema
 
-The database uses the `businesses` table as the parent record for client accounts. Users, leads, jobs, and customers are connected to a business through `business_id`.
+This is the database setup I used for the Townside Web Client Lead & Job Dashboard.
+
+The `businesses` table is the main table for each client account. The other tables use `business_id` so the records stay connected to the correct business.
 
 ```mermaid
 erDiagram
     BUSINESSES ||--o{ USERS : has
-    BUSINESSES ||--o{ LEADS : owns
-    BUSINESSES ||--o{ JOBS : owns
-    BUSINESSES ||--o{ CUSTOMERS : owns
+    BUSINESSES ||--o{ LEADS : has
+    BUSINESSES ||--o{ JOBS : has
+    BUSINESSES ||--o{ CUSTOMERS : has
 
     BUSINESSES {
         integer id PK
@@ -57,12 +59,13 @@ erDiagram
         text email
         datetime created_at
     }
+}
 ```
 
 ## Relationships
 
-- One business can have multiple users.
-- One business can have multiple leads.
-- One business can have multiple jobs.
-- One business can have multiple customers.
-- `business_id` is used to keep each client's data separated.
+- A business can have multiple users.
+- A business can have multiple leads.
+- A business can have multiple jobs.
+- A business can have multiple customers.
+- `business_id` keeps each business account and its records separated.
