@@ -248,6 +248,13 @@ With additional development time, I would expand the project with estimates, sch
 
 The long-term goal is to continue developing the dashboard into a client portal that can be used by Townside Web service-business clients.
 
+
+## Project Presentation
+
+A recorded walkthrough of the completed Townside Web Client Lead & Job Dashboard is available here:
+
+[Watch the Project Presentation](https://www.youtube.com/watch?v=50bC2DsSLGY)
+
 ## Project Summary
 
 The Townside Web Client Lead & Job Dashboard demonstrates full-stack web development using React, Node.js, Express, and SQLite. The project combines frontend design, REST API development, relational database management, authentication, authorization, CRUD operations, search, security, documentation, and Git version control. It was developed in multiple phases so each major feature could be built and tested before additional functionality was added.
